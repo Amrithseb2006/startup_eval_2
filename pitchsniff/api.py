@@ -8,7 +8,7 @@ app = FastAPI(title="Startup Idea Evaluator")
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific frontend URL
+    allow_origins=["startup-eval-2-4hmny698t-amriths-projects-bac310ba.vercel.app"],  # In production, replace with specific frontend URL
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
