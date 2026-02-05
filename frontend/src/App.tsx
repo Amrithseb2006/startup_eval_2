@@ -19,11 +19,68 @@ interface EvaluationResult {
   swot_analysis: SwotAnalysis;
 }
 
+interface JobStatus {
+  job_id: string;
+  status: 'pending' | 'processing' | 'completed' | 'failed';
+  result?: EvaluationResult;
+  error?: string;
+}
+
+// Update this to your backend URL
+const API_BASE_URL = 'http://127.0.0.1:8000';
+
 function App() {
   const [idea, setIdea] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<EvaluationResult | null>(null);
   const [error, setError] = useState('');
+  const [progress, setProgress] = useState('');
+
+  const pollJobStatus = async (jobId: string): Promise<EvaluationResult> => {
+    return new Promise((resolve, reject) => {
+      const pollInterval = setInterval(async () => {
+        try {
+          const response = await axios.get<JobStatus>(
+            `${API_BASE_URL}/evaluate/status/${jobId}`
+          );
+
+          const { status, result, error: jobError } = response.data;
+
+          // Update progress message
+          if (status === 'pending') {
+            setProgress('Queued... waiting for processing');
+          } else if (status === 'processing') {
+            setProgress('Analyzing your idea with 6 AI agents... This may take 30-60 seconds');
+          }
+
+          // Job completed successfully
+          if (status === 'completed' && result) {
+            clearInterval(pollInterval);
+            setProgress('');
+            resolve(result);
+          }
+
+          // Job failed
+          if (status === 'failed') {
+            clearInterval(pollInterval);
+            setProgress('');
+            reject(new Error(jobError || 'Evaluation failed'));
+          }
+        } catch (err) {
+          clearInterval(pollInterval);
+          setProgress('');
+          reject(err);
+        }
+      }, 2000); // Poll every 2 seconds
+
+      // Timeout after 5 minutes
+      setTimeout(() => {
+        clearInterval(pollInterval);
+        setProgress('');
+        reject(new Error('Evaluation timed out. Please try again.'));
+      }, 300000);
+    });
+  };
 
   const handleSubmit = async () => {
     if (!idea.trim()) return;
@@ -31,17 +88,37 @@ function App() {
     setLoading(true);
     setError('');
     setResult(null);
+    setProgress('Submitting your idea...');
 
     try {
-      const response = await axios.post('http://127.0.0.1:8000/evaluate', {
+      // Submit the evaluation job
+      const submitResponse = await axios.post(`${API_BASE_URL}/evaluate/async`, {
         raw_idea: idea
       });
-      setResult(response.data);
+
+      const { job_id } = submitResponse.data;
+      setProgress('Job submitted! Waiting in queue...');
+
+      // Poll for results
+      const evaluationResult = await pollJobStatus(job_id);
+      setResult(evaluationResult);
+
+      // Clean up the job after successful retrieval
+      try {
+        await axios.delete(`${API_BASE_URL}/jobs/${job_id}`);
+      } catch {
+        // Ignore cleanup errors
+      }
     } catch (err: any) {
       console.error(err);
-      setError('Failed to evaluate idea. Please make sure the backend is running.');
+      setError(
+        err.response?.data?.detail ||
+        err.message ||
+        'Failed to evaluate idea. Please make sure the backend is running.'
+      );
     } finally {
       setLoading(false);
+      setProgress('');
     }
   };
 
@@ -78,6 +155,16 @@ function App() {
             {loading ? 'Analyzing...' : 'Evaluate Idea'}
           </button>
 
+          {/* Progress indicator */}
+          {progress && (
+            <div className="mt-4 p-4 bg-blue-900/30 border border-blue-700 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <div className="animate-spin h-5 w-5 border-2 border-blue-400 border-t-transparent rounded-full"></div>
+                <span className="text-blue-200">{progress}</span>
+              </div>
+            </div>
+          )}
+
           {error && (
             <div className="mt-4 p-3 bg-red-900/50 border border-red-700 text-red-200 rounded-lg text-center">
               {error}
@@ -99,8 +186,13 @@ function App() {
             {/* Metrics */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {Object.entries(result.metric_scores).map(([metric, score]) => (
-                <div key={metric} className="bg-gray-800 p-5 rounded-xl border border-gray-700 flex justify-between items-center hover:bg-gray-750 transition">
-                  <span className="capitalize text-gray-300 font-medium">{metric.replace(/_/g, ' ')}</span>
+                <div
+                  key={metric}
+                  className="bg-gray-800 p-5 rounded-xl border border-gray-700 flex justify-between items-center hover:bg-gray-750 transition"
+                >
+                  <span className="capitalize text-gray-300 font-medium">
+                    {metric.replace(/_/g, ' ')}
+                  </span>
                   <div className="flex items-center space-x-3">
                     <div className="w-24 h-2 bg-gray-700 rounded-full overflow-hidden">
                       <div
