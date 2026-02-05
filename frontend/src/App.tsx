@@ -27,7 +27,7 @@ interface JobStatus {
 }
 
 // Update this to your backend URL
-const API_BASE_URL = 'http://127.0.0.1:8000';
+const API_BASE_URL = 'https://startup-eval-2.onrender.com';
 
 function App() {
   const [idea, setIdea] = useState('');
@@ -148,8 +148,8 @@ function App() {
             onClick={handleSubmit}
             disabled={loading || !idea.trim()}
             className={`mt-4 w-full py-3 rounded-lg font-bold text-lg transition-all duration-200 transform hover:scale-[1.02] active:scale-[0.98] ${loading || !idea.trim()
-                ? 'bg-gray-600 cursor-not-allowed opacity-50'
-                : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-lg'
+              ? 'bg-gray-600 cursor-not-allowed opacity-50'
+              : 'bg-gradient-to-r from-blue-600 to-purple-600 hover:from-blue-500 hover:to-purple-500 text-white shadow-lg'
               }`}
           >
             {loading ? 'Analyzing...' : 'Evaluate Idea'}
